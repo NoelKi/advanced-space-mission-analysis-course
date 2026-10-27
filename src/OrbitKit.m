@@ -1,10 +1,10 @@
-classdef SpaceMissionAnalysis
-% SPACEMISSIONANALYSIS Sammlung aller Funktionen für (Advanced) Space Mission Analysis.
+classdef OrbitKit
+% ORBITKIT Sammlung aller Funktionen für (Advanced) Space Mission Analysis.
 % Kieran Noel Mai
 %
 % Alle Funktionen sind statische Methoden und werden ohne Objekt aufgerufen,
-% z. B. SpaceMissionAnalysis.kep2cart(kep). Die Erdkonstanten sind als
-% konstante Eigenschaften verfügbar, z. B. SpaceMissionAnalysis.mu.
+% z. B. OrbitKit.kep2cart(kep). Die Erdkonstanten sind als
+% konstante Eigenschaften verfügbar, z. B. OrbitKit.mu.
 
     properties (Constant)
         mu      = 398600.4418               % Gravitationsparameter der Erde [km^3/s^2]
@@ -69,7 +69,7 @@ classdef SpaceMissionAnalysis
         %   v_eci  Geschwindigkeitsvektor (3x1) im Inertialsystem (ECI) [km/s]
             arguments
                 kep (1,6) double {mustBeReal, mustBeFinite}
-                mu  (1,1) double {mustBePositive} = SpaceMissionAnalysis.mu
+                mu  (1,1) double {mustBePositive} = OrbitKit.mu
             end
             a     = kep(1);
             e     = kep(2);
@@ -120,8 +120,8 @@ classdef SpaceMissionAnalysis
 
             lon = rad2deg(atan2(y, x));
 
-            Re  = SpaceMissionAnalysis.Re;
-            e2  = SpaceMissionAnalysis.f * (2 - SpaceMissionAnalysis.f);   % Exzentrizität^2 des Ellipsoids
+            Re  = OrbitKit.Re;
+            e2  = OrbitKit.f * (2 - OrbitKit.f);   % Exzentrizität^2 des Ellipsoids
             rxy = hypot(x, y);
             phi = atan2(z, rxy * (1 - e2));                  % Startwert
             for k = 1:5
@@ -146,9 +146,9 @@ classdef SpaceMissionAnalysis
         %
         % Rückgabewert:
         %   RAANdot  Drift der Rektaszension des aufsteigenden Knotens [rad/s]
-            n = sqrt(SpaceMissionAnalysis.mu / a^3);   % mittlere Bewegung
+            n = sqrt(OrbitKit.mu / a^3);   % mittlere Bewegung
             p = a * (1 - e^2);                     % Semi-latus rectum
-            RAANdot = -1.5 * n * SpaceMissionAnalysis.J2 * (SpaceMissionAnalysis.Re/p)^2 * cos(i);
+            RAANdot = -1.5 * n * OrbitKit.J2 * (OrbitKit.Re/p)^2 * cos(i);
         end
 
         function i = ssoInclination(a, e)
@@ -166,7 +166,7 @@ classdef SpaceMissionAnalysis
         % Rückgabewert:
         %   i  Inklination [rad] (retrograd, > 90°)
             % raanRateJ2(a,e,0) = -3/2*n*J2*(Re/p)^2
-            cosi = SpaceMissionAnalysis.raanSSO / SpaceMissionAnalysis.raanRateJ2(a, e, 0);
+            cosi = OrbitKit.raanSSO / OrbitKit.raanRateJ2(a, e, 0);
             if abs(cosi) > 1
                 error('ssoInclination:noSolution', ...
                     'Für a = %.1f km und e = %.3f existiert keine SSO.', a, e);
@@ -198,7 +198,7 @@ classdef SpaceMissionAnalysis
                 t    (1,:) double {mustBeReal, mustBeFinite}
                 opts.J2 (1,1) logical = false
             end
-            mu    = SpaceMissionAnalysis.mu;
+            mu    = OrbitKit.mu;
             a     = kep0(1);
             e     = kep0(2);
             i     = kep0(3);
@@ -212,7 +212,7 @@ classdef SpaceMissionAnalysis
 
             RAANdot = 0;
             if opts.J2
-                RAANdot = SpaceMissionAnalysis.raanRateJ2(a, e, i);
+                RAANdot = OrbitKit.raanRateJ2(a, e, i);
             end
 
             N = numel(t);
@@ -220,10 +220,10 @@ classdef SpaceMissionAnalysis
             v_eci = zeros(3, N);
             for k = 1:N
                 M  = mod(M0 + n*t(k), 2*pi);
-                E  = SpaceMissionAnalysis.newton(@(E) E - e*sin(E) - M, @(E) 1 - e*cos(E), M);
+                E  = OrbitKit.newton(@(E) E - e*sin(E) - M, @(E) 1 - e*cos(E), M);
                 nu = 2*atan2(sqrt(1+e)*sin(E/2), sqrt(1-e)*cos(E/2)); % exz. -> wahre Anomalie
                 RAAN = RAAN0 + RAANdot*t(k);
-                [r_eci(:,k), v_eci(:,k)] = SpaceMissionAnalysis.kep2cart([a e i RAAN omega nu], mu);
+                [r_eci(:,k), v_eci(:,k)] = OrbitKit.kep2cart([a e i RAAN omega nu], mu);
             end
         end
 
@@ -236,7 +236,7 @@ classdef SpaceMissionAnalysis
         %   r_eci     Positionsvektoren (3xN) im Inertialsystem [km]
         %   utc       Zeitpunkte (1xN datetime, UTC)
         %   titleStr  Titel der Abbildung
-            Re = SpaceMissionAnalysis.Re;
+            Re = OrbitKit.Re;
             figure('Name', titleStr, 'Position', [100 100 1300 520]);
             tl = tiledlayout(1, 2, 'TileSpacing', 'compact');
             title(tl, titleStr);
@@ -255,7 +255,7 @@ classdef SpaceMissionAnalysis
             legend('Erde', 'Bahn', 'Start', 'Location', 'northeast');
 
             % Bodenspur; an Sprüngen über den Datumsgrenzmeridian aufgetrennt
-            [lat, lon] = SpaceMissionAnalysis.eci2geodetic(r_eci, utc);
+            [lat, lon] = OrbitKit.eci2geodetic(r_eci, utc);
             gx = geoaxes(tl);
             gx.Layout.Tile = 2;
             geobasemap(gx, 'darkwater');
