@@ -6,14 +6,6 @@ classdef OrbitKit
 % z. B. OrbitKit.kep2cart(kep). Die Erdkonstanten sind als
 % konstante Eigenschaften verfügbar, z. B. OrbitKit.mu.
 
-    properties (Constant)
-        mu      = 398600.4418               % Gravitationsparameter der Erde [km^3/s^2]
-        Re      = 6378.137                  % Äquatorradius (WGS84) [km]
-        f       = 1/298.257223563           % Abplattung (WGS84) [-]
-        J2      = 1.08262668e-3             % Zonaler Koeffizient J2 [-]
-        wE      = 7.2921159e-5              % Rotationsrate der Erde [rad/s]
-        raanSSO = 2*pi / (365.2422 * 86400) % Knotendrift einer SSO, 360° pro trop. Jahr [rad/s]
-    end
 
     methods (Static)
 
@@ -26,7 +18,7 @@ classdef OrbitKit
         %   f             Funktions-Handle der Funktion, deren Nullstelle gesucht wird
         %   df            Funktions-Handle der Ableitung f'
         %   x0            Startwert
-        %   opts.Tol      Abbruch, sobald |x_(n+1) - x_n| < Tol (Standard: 1e-12)
+        %   opts.Tol      Abbruch, sobald |x_(n+1) - x_n| < Tol (Tolerenz) (Standard: 1e-12)
         %   opts.MaxIter  Maximale Anzahl an Iterationen (Standard: 50)
         %
         % Rückgabewerte:
@@ -69,7 +61,7 @@ classdef OrbitKit
         %   v_eci  Geschwindigkeitsvektor (3x1) im Inertialsystem (ECI) [km/s]
             arguments
                 kep (1,6) double {mustBeReal, mustBeFinite}
-                mu  (1,1) double {mustBePositive} = OrbitKit.mu
+                mu  (1,1) double {mustBePositive} = Earth.mu
             end
             a     = kep(1);
             e     = kep(2);
@@ -120,8 +112,8 @@ classdef OrbitKit
 
             lon = rad2deg(atan2(y, x));
 
-            Re  = OrbitKit.Re;
-            e2  = OrbitKit.f * (2 - OrbitKit.f);   % Exzentrizität^2 des Ellipsoids
+            Re  = Earth.Re;
+            e2  = Earth.f * (2 - Earth.f);   % Exzentrizität^2 des Ellipsoids
             rxy = hypot(x, y);
             phi = atan2(z, rxy * (1 - e2));                  % Startwert
             for k = 1:5
@@ -146,9 +138,9 @@ classdef OrbitKit
         %
         % Rückgabewert:
         %   RAANdot  Drift der Rektaszension des aufsteigenden Knotens [rad/s]
-            n = sqrt(OrbitKit.mu / a^3);   % mittlere Bewegung
+            n = sqrt(Earth.mu / a^3);   % mittlere Bewegung
             p = a * (1 - e^2);                     % Semi-latus rectum
-            RAANdot = -1.5 * n * OrbitKit.J2 * (OrbitKit.Re/p)^2 * cos(i);
+            RAANdot = -1.5 * n * Earth.J2 * (Earth.Re/p)^2 * cos(i);
         end
 
         function i = ssoInclination(a, e)
@@ -166,10 +158,10 @@ classdef OrbitKit
         % Rückgabewert:
         %   i  Inklination [rad] (retrograd, > 90°)
             % raanRateJ2(a,e,0) = -3/2*n*J2*(Re/p)^2
-            cosi = OrbitKit.raanSSO / OrbitKit.raanRateJ2(a, e, 0);
+            cosi = Earth.raanSSO / OrbitKit.raanRateJ2(a, e, 0);
             if abs(cosi) > 1
                 error('ssoInclination:noSolution', ...
-                    'Für a = %.1f km und e = %.3f existiert keine SSO.', a, e);
+                    'For a = %.1f km and e = %.3f there is no SSO solution.', a, e);
             end
             i = acos(cosi);
         end
@@ -198,7 +190,7 @@ classdef OrbitKit
                 t    (1,:) double {mustBeReal, mustBeFinite}
                 opts.J2 (1,1) logical = false
             end
-            mu    = OrbitKit.mu;
+            mu    = Earth.mu;
             a     = kep0(1);
             e     = kep0(2);
             i     = kep0(3);
@@ -236,7 +228,7 @@ classdef OrbitKit
         %   r_eci     Positionsvektoren (3xN) im Inertialsystem [km]
         %   utc       Zeitpunkte (1xN datetime, UTC)
         %   titleStr  Titel der Abbildung
-            Re = OrbitKit.Re;
+            Re = Earth.Re;
             figure('Name', titleStr, 'Position', [100 100 1300 520]);
             tl = tiledlayout(1, 2, 'TileSpacing', 'compact');
             title(tl, titleStr);
@@ -247,25 +239,25 @@ classdef OrbitKit
             surf(Re*X, Re*Y, Re*Z, 'FaceColor', [0.55 0.75 1], ...
                 'EdgeColor', [0.4 0.55 0.8], 'EdgeAlpha', 0.3, 'FaceAlpha', 0.6);
             hold on;
-            plot3(r_eci(1,:), r_eci(2,:), r_eci(3,:), 'r', 'LineWidth', 0.8);
-            plot3(r_eci(1,1), r_eci(2,1), r_eci(3,1), 'ko', 'MarkerFaceColor', 'g');
+            plot3(r_eci(1,:), r_eci(2,:), r_eci(3,:), 'color', [1 0 1], 'LineWidth', 0.8);
+            plot3(r_eci(1,1), r_eci(2,1), r_eci(3,1), 'ko', 'MarkerFaceColor', 'r');
             axis equal; grid on; view(135, 25);
             xlabel('x_{ICRF} [km]'); ylabel('y_{ICRF} [km]'); zlabel('z_{ICRF} [km]');
             title('Bahn im Inertialsystem');
-            legend('Erde', 'Bahn', 'Start', 'Location', 'northeast');
+            legend('Earth', 'Orbit', 'Start', 'Location', 'northeast');
 
             % Bodenspur; an Sprüngen über den Datumsgrenzmeridian aufgetrennt
             [lat, lon] = OrbitKit.eci2geodetic(r_eci, utc);
             gx = geoaxes(tl);
             gx.Layout.Tile = 2;
-            geobasemap(gx, 'darkwater');
+            geobasemap(gx, 'satellite');
             hold(gx, 'on');
             breaks = [0, find(abs(diff(lon)) > 180), numel(lon)];
             for s = 1:numel(breaks)-1
                 idx = breaks(s)+1 : breaks(s+1);
-                geoplot(gx, lat(idx), lon(idx), 'r', 'LineWidth', 0.8);
+                geoplot(gx, lat(idx), lon(idx), 'color', [1 0 1], 'LineWidth', 0.8);
             end
-            geoplot(gx, lat(1), lon(1), 'ko', 'MarkerFaceColor', 'g');
+            geoplot(gx, lat(1), lon(1), 'ko', 'MarkerFaceColor', 'r');
             geolimits(gx, [-90 90], [-180 180]);
             title(gx, 'Bodenspur');
         end
