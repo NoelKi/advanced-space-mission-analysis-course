@@ -192,6 +192,47 @@ classdef RungeKutta
             stats.nRejected = numel(hRej);
         end
 
+        function Yq = evaluateAt(obj, f, t, Y, tq)
+        % EVALUATEAT Lösung von solve an beliebigen Zeitpunkten tq auswerten.
+        %
+        % Für jeden Zeitpunkt wird vom letzten akzeptierten Schritt davor ein
+        % zusätzlicher, verkürzter RK-Schritt bis tq gerechnet. Da dieser
+        % kürzer als der akzeptierte Schritt ist, bleibt der Fehler innerhalb
+        % der Toleranz von solve; die Schrittweitensteuerung wird nicht verändert.
+        %
+        % Eingaben:
+        %   f   dasselbe Funktions-Handle wie bei solve
+        %   t   Zeitpunkte aus solve (1 x N)
+        %   Y   Zustände aus solve (n x N)
+        %   tq  gewünschte Zeitpunkte (1 x M, aufsteigend, innerhalb [t(1), t(end)])
+        %
+        % Rückgabewert:
+        %   Yq  Zustände zu tq (n x M)
+            arguments
+                obj
+                f  (1,1) function_handle
+                t  (1,:) double
+                Y  (:,:) double
+                tq (1,:) double
+            end
+            if any(diff(tq) < 0) || tq(1) < t(1) || tq(end) > t(end)
+                error('RungeKutta:tq', 'tq muss aufsteigend und innerhalb von [t(1), t(end)] liegen.');
+            end
+            noCtrl = struct('Adaptive', false);
+            Yq = zeros(size(Y, 1), numel(tq));
+            k  = 1;
+            for m = 1:numel(tq)
+                while k < numel(t) && t(k+1) <= tq(m)      % letzter Knoten mit t(k) <= tq
+                    k = k + 1;
+                end
+                if tq(m) == t(k)
+                    Yq(:,m) = Y(:,k);
+                else
+                    Yq(:,m) = obj.step(f, t(k), Y(:,k), tq(m) - t(k), noCtrl);
+                end
+            end
+        end
+
     end
 
     methods (Access = private)

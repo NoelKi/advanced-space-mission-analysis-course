@@ -3,8 +3,8 @@ classdef OrbitKit
 % Kieran Noel Mai
 %
 % Alle Funktionen sind statische Methoden und werden ohne Objekt aufgerufen,
-% z. B. OrbitKit.kep2cart(kep). Die Erdkonstanten sind als
-% konstante Eigenschaften verfügbar, z. B. OrbitKit.mu.
+% z. B. OrbitKit.kep2cart(kep). Die Erdkonstanten liegen in der Klasse
+% Earth, z. B. Earth.mu.
 
 
     methods (Static)
@@ -164,6 +164,66 @@ classdef OrbitKit
                     'For a = %.1f km and e = %.3f there is no SSO solution.', a, e);
             end
             i = acos(cosi);
+        end
+
+        function dr_rtn = eci2rtn(dr_eci, r_ref, v_ref)
+        % ECI2RTN Zerlegt Differenzvektoren in das RTN-System einer Referenzbahn.
+        %
+        % R radial (Richtung r), N normal zur Bahnebene (Richtung r x v),
+        % T entlang der Bahn (N x R).
+        %
+        % Eingaben:
+        %   dr_eci  Differenzvektoren (3xN) im Inertialsystem
+        %   r_ref   Positionen der Referenzbahn (3xN) [km]
+        %   v_ref   Geschwindigkeiten der Referenzbahn (3xN) [km/s]
+        %
+        % Rückgabewert:
+        %   dr_rtn  Komponenten [R; T; N] (3xN), gleiche Einheit wie dr_eci
+            eR = r_ref ./ vecnorm(r_ref);
+            eN = cross(r_ref, v_ref);
+            eN = eN ./ vecnorm(eN);
+            eT = cross(eN, eR);
+            dr_rtn = [dot(dr_eci, eR); dot(dr_eci, eT); dot(dr_eci, eN)];
+        end
+
+        %% Bewegungsgleichungen
+
+        function dy = eomTwoBody(~, y)
+        % EOMTWOBODY Ungestörte Bewegungsgleichung (Zweikörperproblem).
+        %
+        %   r'' = -mu/|r|^3 * r
+        %
+        % Eingaben:
+        %   y  Zustand [r; v] (6x1) im Inertialsystem [km, km/s]
+        %
+        % Rückgabewert:
+        %   dy  Zeitableitung [v; a] (6x1) [km/s, km/s^2]
+            r  = y(1:3);
+            dy = [y(4:6); -Earth.mu / norm(r)^3 * r];
+        end
+
+        function dy = eomJ2(~, y)
+        % EOMJ2 Bewegungsgleichung mit J2-Störung (Abplattung der Erde).
+        %
+        %   r'' = -mu/|r|^3 * r + a_J2,  mit
+        %   a_J2 = -3/2 * J2 * mu * Re^2 / |r|^5 * [x*(1 - 5 z^2/r^2)
+        %                                           y*(1 - 5 z^2/r^2)
+        %                                           z*(3 - 5 z^2/r^2)]
+        % Die z-Achse des Inertialsystems wird als Rotationsachse der Erde
+        % angenommen (Präzession und Nutation vernachlässigt).
+        %
+        % Eingaben:
+        %   y  Zustand [r; v] (6x1) im Inertialsystem [km, km/s]
+        %
+        % Rückgabewert:
+        %   dy  Zeitableitung [v; a] (6x1) [km/s, km/s^2]
+            mu  = Earth.mu;
+            r   = y(1:3);
+            rn  = norm(r);
+            z2  = (r(3) / rn)^2;
+            kJ2 = -1.5 * Earth.J2 * mu * Earth.Re^2 / rn^5;
+            aJ2 = kJ2 * [r(1)*(1 - 5*z2); r(2)*(1 - 5*z2); r(3)*(3 - 5*z2)];
+            dy  = [y(4:6); -mu / rn^3 * r + aJ2];
         end
 
         %% Propagation
