@@ -98,8 +98,8 @@ classdef RungeKutta
         %   opts.HMin      Kleinste zulässige Schrittweite (Standard: 1e-10)
         %   opts.HMax      Größte zulässige Schrittweite (Standard: Inf)
         %   opts.Safety    Sicherheitsfaktor der Steuerung (Standard: 0.9)
-        %   opts.FacMin    Kleinster Änderungsfaktor von h (Standard: 0.2)
-        %   opts.FacMax    Größter Änderungsfaktor von h (Standard: 5)
+        %   opts.FacMin    Kleinster Änderungsfaktor von h (Standard: 0.1, wie GODOT)
+        %   opts.FacMax    Größter Änderungsfaktor von h (Standard: 1.5, wie GODOT)
         %
         % Rückgabewerte:
         %   t      Zeitpunkte der akzeptierten Schritte (1 x N)
@@ -120,8 +120,8 @@ classdef RungeKutta
                 opts.HMin     (1,1) double {mustBePositive} = 1e-10
                 opts.HMax     (1,1) double {mustBePositive} = Inf
                 opts.Safety   (1,1) double {mustBePositive} = 0.9
-                opts.FacMin   (1,1) double {mustBePositive} = 0.2
-                opts.FacMax   (1,1) double {mustBePositive} = 5
+                opts.FacMin   (1,1) double {mustBePositive} = 0.1
+                opts.FacMax   (1,1) double {mustBePositive} = 1.5
             end
             if tspan(2) <= tspan(1)
                 error('RungeKutta:tspan', 'tspan(2) muss größer als tspan(1) sein.');
@@ -294,6 +294,8 @@ classdef RungeKutta
 
         function obj = rkf78()
         % RKF78 Runge-Kutta-Fehlberg 7(8): propagiert mit Ordnung 7, Fehlerschätzung mit Ordnung 8.
+        % Tableau aus Vorlesung 05, dort andere Bezeichnungen: alpha_k -> c,
+        % beta_kl -> A, c_k -> b7, c^_k -> b8 (Zeile k = 0..12 entspricht Zeile k+1 von A).
             A = zeros(13);
             A(2,1)    = 2/27;
             A(3,1:2)  = [1/36 1/12];

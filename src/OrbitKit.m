@@ -157,8 +157,7 @@ classdef OrbitKit
         %
         % Rückgabewert:
         %   i  Inklination [rad] (retrograd, > 90°)
-            % raanRateJ2(a,e,0) = -3/2*n*J2*(Re/p)^2
-            cosi = Earth.raanSSO / OrbitKit.raanRateJ2(a, e, 0);
+            cosi = Earth.raanSSO / OrbitKit.raanRateJ2(a, e, 0); % raanRateJ2(a,e,0) = -3/2*n*J2*(Re/p)^2, kleiner Trick hier mit i = 0
             if abs(cosi) > 1
                 error('ssoInclination:noSolution', ...
                     'For a = %.1f km and e = %.3f there is no SSO solution.', a, e);

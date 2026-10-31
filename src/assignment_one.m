@@ -21,8 +21,8 @@ i  = OrbitKit.ssoInclination(a, e);
 T  = 2*pi * sqrt(a^3 / Earth.mu); % Umlaufzeit [s]
 
 kep0 = [a, e, i, 0, 0, 0];         % [a e i RAAN omega nu]
-nRev = 30;
-t    = 0:dt:nRev*T;
+nRev = 30;                         % Orbit anzahl
+t    = 0:dt:nRev*T;                % 
 utc  = t0 + seconds(t);
 
 fprintf('Große Halbachse a      = %.3f km\n', a);
@@ -57,7 +57,7 @@ OrbitKit.plotOrbit(r_kepJ2, utc, 'Aufgabe 1f: Keplerbahn mit J2-Knotendrift (SSO
 % stehen in OrbitKit.eomTwoBody und OrbitKit.eomJ2.
 rk45  = RungeKutta.rkf45();
 rk78  = RungeKutta.rkf78();
-rkOpt = {'RelTol', 1e-10, 'AbsTol', 1e-10, 'Step', 60};   % gemeinsame Einstellungen
+rkOpt = {'RelTol', 1e-10, 'AbsTol', 1e-10, 'Step', 1};    % gemeinsame Einstellungen (Startschritt 1 s laut Vorlesung)
 
 [r0, v0] = OrbitKit.kep2cart(kep0);
 y0 = [r0; v0];
