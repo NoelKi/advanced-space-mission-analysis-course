@@ -3,9 +3,11 @@ classdef RungeKutta
 % Kieran Noel Mai
 %
 % Ein Objekt beschreibt ein RK-Verfahren über sein Butcher-Tableau (A, b, c).
-% Eingebettete Verfahren haben zusätzlich Gewichte bErr niedrigerer Ordnung:
-% propagiert wird mit der höheren Ordnung (b), die Differenz zur niedrigeren
-% Ordnung (bErr) dient als Fehlerschätzer für die Schrittweitensteuerung.
+% Eingebettete Verfahren haben zusätzlich Gewichte bHat höherer Ordnung.
+% Wie in der Vorlesung (RKF4(5): Fehler der 4. Ordnung mit der 5. Ordnung
+% geschätzt) wird mit der niedrigeren Ordnung (b) propagiert; die Differenz
+% zur Lösung höherer Ordnung (bHat) schätzt den Fehler der propagierten
+% Lösung für die Schrittweitensteuerung.
 %
 % Beispiel:
 %   rk = RungeKutta.rkf45();
@@ -16,11 +18,11 @@ classdef RungeKutta
     properties (SetAccess = immutable)
         Name     (1,:) char             % Bezeichnung des Verfahrens
         A        (:,:) double           % Koeffizientenmatrix (s x s, strikt untere Dreiecksmatrix)
-        b        (1,:) double           % Gewichte der Lösung (Ordnung Order)
+        b        (1,:) double           % Gewichte der propagierten Lösung (Ordnung Order)
         c        (1,:) double           % Knoten (Zeitpunkte der Stufen)
         Order    (1,1) double           % Ordnung von b
-        bErr     (1,:) double           % Gewichte für die Fehlerschätzung (leer: nicht eingebettet)
-        OrderErr (1,:) double           % Ordnung von bErr
+        bHat     (1,:) double           % Gewichte höherer Ordnung zur Fehlerschätzung (leer: nicht eingebettet)
+        OrderHat (1,:) double           % Ordnung von bHat
     end
 
     properties (Dependent)
@@ -38,16 +40,16 @@ classdef RungeKutta
         %   b              Gewichte (1 x s)
         %   c              Knoten (1 x s)
         %   opts.Order     Ordnung von b
-        %   opts.bErr      Gewichte niedrigerer Ordnung (1 x s), optional
-        %   opts.OrderErr  Ordnung von bErr, optional
+        %   opts.bHat      Gewichte höherer Ordnung (1 x s), optional
+        %   opts.OrderHat  Ordnung von bHat (> Order), optional
         %   opts.Name      Bezeichnung, optional
             arguments
                 A (:,:) double
                 b (1,:) double
                 c (1,:) double
                 opts.Order    (1,1) double {mustBeInteger, mustBePositive}
-                opts.bErr     (1,:) double = []
-                opts.OrderErr (1,:) double = []
+                opts.bHat     (1,:) double = []
+                opts.OrderHat (1,:) double = []
                 opts.Name     (1,:) char = 'Runge-Kutta'
             end
             s = numel(b);
@@ -57,15 +59,17 @@ classdef RungeKutta
             if any(triu(A) ~= 0, 'all')
                 error('RungeKutta:implicit', 'Nur explizite Verfahren (A strikt unten) werden unterstützt.');
             end
-            if ~isempty(opts.bErr) && (numel(opts.bErr) ~= s || isempty(opts.OrderErr))
-                error('RungeKutta:embedded', 'bErr braucht %d Einträge und eine Angabe OrderErr.', s);
+            if ~isempty(opts.bHat) && (numel(opts.bHat) ~= s || isempty(opts.OrderHat) ...
+                    || opts.OrderHat <= opts.Order)
+                error('RungeKutta:embedded', ...
+                    'bHat braucht %d Einträge und eine Ordnung OrderHat > Order.', s);
             end
             obj.A        = A;
             obj.b        = b;
             obj.c        = c;
             obj.Order    = opts.Order;
-            obj.bErr     = opts.bErr;
-            obj.OrderErr = opts.OrderErr;
+            obj.bHat     = opts.bHat;
+            obj.OrderHat = opts.OrderHat;
             obj.Name     = opts.Name;
         end
 
@@ -74,7 +78,7 @@ classdef RungeKutta
         end
 
         function tf = get.IsEmbedded(obj)
-            tf = ~isempty(obj.bErr);
+            tf = ~isempty(obj.bHat);
         end
 
         function [t, Y, stats] = solve(obj, f, tspan, y0, opts)
@@ -150,12 +154,12 @@ classdef RungeKutta
                 stats.nFevals = stats.nFevals + obj.Stages;
 
                 if opts.Adaptive
-                    % Neue Schrittweite aus dem Fehler der eingebetteten Lösung:
-                    % h_neu = h * Safety * (1/err)^(1/(q+1)), q = Ordnung des Schätzers
+                    % Neue Schrittweite aus dem geschätzten Fehler der propagierten
+                    % Lösung: h_neu = h * Safety * (1/err)^(1/(p+1)), p = Order
                     if err == 0
                         fac = opts.FacMax;
                     else
-                        fac = opts.Safety * err^(-1/(obj.OrderErr + 1));
+                        fac = opts.Safety * err^(-1/(obj.Order + 1));
                     end
                     h = min(opts.HMax, hk * min(opts.FacMax, max(opts.FacMin, fac)));
 
@@ -248,7 +252,7 @@ classdef RungeKutta
 
             err = 0;
             if opts.Adaptive
-                e     = h * K * (obj.b - obj.bErr)';                       % Fehlerschätzung
+                e     = h * K * (obj.bHat - obj.b)';                       % x_hat - x
                 scale = opts.AbsTol + opts.RelTol * max(abs(y), abs(yNew));
                 err   = max(abs(e) ./ scale);
             end
@@ -275,7 +279,7 @@ classdef RungeKutta
         end
 
         function obj = rkf45()
-        % RKF45 Runge-Kutta-Fehlberg 4(5): propagiert mit Ordnung 5, Schätzer Ordnung 4.
+        % RKF45 Runge-Kutta-Fehlberg 4(5): propagiert mit Ordnung 4, Fehlerschätzung mit Ordnung 5.
             A = zeros(6);
             A(2,1)   = 1/4;
             A(3,1:2) = [3/32 9/32];
@@ -285,11 +289,11 @@ classdef RungeKutta
             c  = [0 1/4 3/8 12/13 1 1/2];
             b5 = [16/135 0 6656/12825 28561/56430 -9/50 2/55];
             b4 = [25/216 0 1408/2565 2197/4104 -1/5 0];
-            obj = RungeKutta(A, b5, c, Order=5, bErr=b4, OrderErr=4, Name='RKF4(5)');
+            obj = RungeKutta(A, b4, c, Order=4, bHat=b5, OrderHat=5, Name='RKF4(5)');
         end
 
         function obj = rkf78()
-        % RKF78 Runge-Kutta-Fehlberg 7(8): propagiert mit Ordnung 8, Schätzer Ordnung 7.
+        % RKF78 Runge-Kutta-Fehlberg 7(8): propagiert mit Ordnung 7, Fehlerschätzung mit Ordnung 8.
             A = zeros(13);
             A(2,1)    = 2/27;
             A(3,1:2)  = [1/36 1/12];
@@ -306,7 +310,7 @@ classdef RungeKutta
             c  = [0 2/27 1/9 1/6 5/12 1/2 5/6 1/6 2/3 1/3 1 0 1];
             b8 = [0 0 0 0 0 34/105 9/35 9/35 9/280 9/280 0 41/840 41/840];
             b7 = [41/840 0 0 0 0 34/105 9/35 9/35 9/280 9/280 41/840 0 0];
-            obj = RungeKutta(A, b8, c, Order=8, bErr=b7, OrderErr=7, Name='RKF7(8)');
+            obj = RungeKutta(A, b7, c, Order=7, bHat=b8, OrderHat=8, Name='RKF7(8)');
         end
 
     end
